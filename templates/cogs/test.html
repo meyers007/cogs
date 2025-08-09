@@ -1,0 +1,116 @@
+{% extends "common.html" %}
+{% block content %}
+<style>
+.rbtn-active {
+    background-color: #28a745;
+    border-color: #28a745;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+</style>
+<script src="/static/geoui/recorder.js"></script>
+<script src="/static/geoui/geoaudio.js"></script>
+
+<div class="row" style="height:100%;padding: 0 0 0 0;">
+    <div class="col-5" style="background: #f9f9f9; padding:0 5 0 20;">
+        <br/>        
+        <audio controls id="faudio"  style="display: none1;width:100%;">No Audio.</audio><br/>
+    
+        <br/>        
+        <button id="wwDetectBtn" class="btn btn-secondary" onclick="wwToggle()">
+            <i class="fa fa-podcast"></i> listen
+        </button>
+        <button id="recordingBtn" class="btn btn-secondary" onclick="trascribeStart()">
+            <i class="fa fa-microphone"></i> Record
+        </button>
+        <button id="recordingBtn" class="btn btn-primary" onclick="lookUp(null)">
+            <i class="fa fa-paper-plane"></i>?
+        </button>
+        <span id="cogStatus" style="font-size: smaller;"></span>
+        <br/>
+        <div contenteditable id=trans 
+            style="padding:10px;border: 1px solid gray; border-radius: 6px;font-size: small;min-height: 30%;"></div>
+    </div>
+    <div id="response" class="col-7" style="font-size: smaller;height: 100%; overflow: scroll;">
+            <h8> Hello - your responses will apear here: ;)</h8>
+    </div>
+</div>
+{% include "geoaudio_transcribe.html" %}
+{% include "geo_wakeword.html" %}
+{% include "tts.html" %}
+
+<script>
+const cogStatus = $('#cogStatus')
+const responseDiv = $('#response')
+let WW_ACTIVE = 0    
+
+function wwDetectCB(txt) {
+    $('#trans').html("Yes ... ")
+    _geoAudio.clearRecording()
+    setTimeout(trascribeStart, 200)
+    $('#wwDetectBtn').removeClass("rbtn-active")
+}
+function wwDetect(){
+    if ( !WW_ACTIVE){
+        return
+    }
+    $('#wwDetectBtn').addClass("rbtn-active")
+    $('#wwDetectBtn').blur()
+    startWakeWordDetectLoop(wwDetectCB)
+}
+function wwToggle(){
+    if ( WW_ACTIVE){
+        WW_ACTIVE = 0
+        stopWW()
+        cogStatus.html("Stopping Listening!!")
+        return
+    }
+    WW_ACTIVE = 1
+    wwDetect()
+}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function trascribeToggleCB(txt, final) {
+    console.log(txt)
+    $('#trans').html(txt)
+    if (final) {
+        _geoAudio.stopRecording()
+        $('#recordingBtn').removeClass("rbtn-active")
+        setTimeout(lookUp, 500, txt)
+    }
+}
+function trascribeStart(nseconds=20) {
+    _geoAudio.startRecording()
+    console.log("Started to Listen")
+    var opt = {callback: trascribeToggleCB, max_wait: nseconds }
+    $('#recordingBtn').addClass("rbtn-active")
+    setTimeout( geoaudio_trans_listen, 300, opt)
+}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+async function lookUpCB(responseTxt, statusTxt, xhr, context, formData) {
+    console.log("===>", context)
+    var h = responseDiv.html()
+    h += `<br/> <b> ${""+context.q} </b> <br/>Response: ${responseTxt}<br/><hr/>`
+    responseDiv.html(h)
+    responseDiv[0].scrollTop = responseDiv[0].scrollHeight;
+    await tts(responseTxt)
+    setTimeout(wwDetect, 2000)
+    cogStatus.html("")
+}
+async function lookUp(txt) {
+    var data = {
+        q: txt || $('#trans').text()
+    }
+    if ( !data.q) {
+        tts("How can I help you today!")
+        setTimeout(wwDetect, 200)
+        return
+    }
+    cogStatus.html("looking up!!")
+    await callws('/cogs/lookup/', "", lookUpCB, data, {show_busy: 0});
+}
+ </script>
+{% endblock %}
