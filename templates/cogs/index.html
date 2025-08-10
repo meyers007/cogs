@@ -27,12 +27,20 @@
         <button id="wwDetectBtn" class="btn btn-secondary" onclick="wwToggle()"
             data-toggle="tooltip" title='Listen to wake-word: sage'
         >
-            <i class="fa fa-podcast"></i> listen
-        </button>
-        <button id="recordingBtn" class="btn btn-secondary" onclick="trascribeStart()">
-            <i class="fa fa-microphone"></i> Record
-        </button>
-        <button id="recordingBtn" class="btn btn-primary" onclick="lookUp(null)">
+            <i class="fa fa-podcast"></i>&nbsp;</button>
+
+        <button id="recordingBtn" class="btn btn-secondary" onclick="trascribeStart()"
+            data-toggle="tooltip" title='Record your question'
+            >
+            <i class="fa fa-microphone"></i>&nbsp;</button>
+
+        <button id="lookingBtn" class="btn btn-secondary" onclick="$('#look_around')[0].checked = true;startLooking()"
+        data-toggle="tooltip" title='Start Looking around!'
+        >
+        <i class="fa fa-camera"></i>&nbsp;</button>
+
+
+        <button id="sendBtn" class="btn btn-primary" onclick="lookUp(null)">
             <i class="fa fa-paper-plane"></i>&nbsp;
         </button>
         <span id="cogStatus" style="font-size: smaller;"></span>
@@ -147,10 +155,12 @@ function trascribeToggleCB(txt, final) {
     }
 }
 function trascribeStart(nseconds=20) {
+    $('#recordingBtn').addClass("rbtn-active")
+    $('#recordingBtn').blur()
+
     _geoAudio.startRecording()
     console.log("Started to Listen")
     var opt = {callback: trascribeToggleCB, max_wait: nseconds }
-    $('#recordingBtn').addClass("rbtn-active")
     setTimeout( geoaudio_trans_listen, 300, opt)
 }
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
