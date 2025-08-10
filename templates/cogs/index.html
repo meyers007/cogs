@@ -1,6 +1,9 @@
 {% extends "common.html" %}
 {% block content %}
 <style>
+.small {
+    font-size: smaller;
+}    
 .rbtn-active {
     background-color: #28a745;
     border-color: #28a745;
@@ -16,27 +19,42 @@
 <script src="/static/geoui/geoaudio.js"></script>
 
 <div class="row" style="height:100%;padding: 0 0 0 0;">
-    <div class="col-5" style="background: #f9f9f9; padding:0 5 0 20;">
+    <div id="leftpanel" class="col-5" style="background: #f9f9f9; padding:0 5 0 20;">
         <br/>        
         <audio controls id="faudio"  style="display: none1;width:100%;">No Audio.</audio><br/>
     
         <br/>        
-        <button id="wwDetectBtn" class="btn btn-secondary" onclick="wwToggle()">
+        <button id="wwDetectBtn" class="btn btn-secondary" onclick="wwToggle()"
+            data-toggle="tooltip" title='Listen to wake-word: sage'
+        >
             <i class="fa fa-podcast"></i> listen
         </button>
         <button id="recordingBtn" class="btn btn-secondary" onclick="trascribeStart()">
             <i class="fa fa-microphone"></i> Record
         </button>
         <button id="recordingBtn" class="btn btn-primary" onclick="lookUp(null)">
-            <i class="fa fa-paper-plane"></i>?
+            <i class="fa fa-paper-plane"></i>&nbsp;
         </button>
         <span id="cogStatus" style="font-size: smaller;"></span>
         <br/>
         <div contenteditable id=trans 
-            style="padding:10px;border: 1px solid gray; border-radius: 6px;font-size: small;min-height: 30%;"></div>
+            style="padding:10px;border: 1px solid gray; border-radius: 6px;font-size: small;min-height: 30%;">
+        </div>
+        <div class="small">
+            <div>
+                <input onclick="listen_wakeword()" id="listen_wakeword" type="checkbox" style="vertical-align: middle;" /> 
+                <span style="vertical-align: middle;">Listen during starup </span> 
+            </div>
+            <div>
+                <input onclick="startLooking()" id="look_around" type="checkbox" style="vertical-align: middle;" /> 
+                <span style="vertical-align: middle;">Look Around </span> 
+            </div>
+            {% include "cogs/img_capture_include.html" %}
+        </div>
     </div>
-    <div id="response" class="col-7" style="font-size: smaller;height: 100%; overflow: scroll;">
-            <h8> Hello - your responses will apear here: ;)</h8>
+    <div id="response" class="col-7 small" style="height: 100%; overflow: scroll;">
+            <h6> Messages </h6>
+            <hr/>
     </div>
 </div>
 {% include "geoaudio_transcribe.html" %}
@@ -62,16 +80,62 @@ function wwDetect(){
     $('#wwDetectBtn').blur()
     startWakeWordDetectLoop(wwDetectCB)
 }
+function wwStop(){
+    WW_ACTIVE = 0
+    $('#wwDetectBtn').removeClass("rbtn-active")
+    stopWW()
+}
 function wwToggle(){
     if ( WW_ACTIVE){
-        WW_ACTIVE = 0
-        stopWW()
-        cogStatus.html("Stopping Listening!!")
-        return
+        wwStop()
     }
     WW_ACTIVE = 1
     wwDetect()
 }
+function listen_wakeword(){
+    if ($('#listen_wakeword')[0].checked) {
+        WW_ACTIVE = 1
+        wwDetect()
+    } else {
+        wwStop()
+    }
+    saveZZValues();
+}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+let lookingAround = null
+let recent = {}
+function startLooking(txt=null) {
+    if ($('#look_around')[0].checked) {
+        if (!lookingAround) {
+            $('#lookingDiv').show()
+            lookingAround = 1
+            //setTimeout(startLooking, 3000)
+            var w =$('#leftpanel').width()-20
+            startCamera(w, w * .75 )
+        }
+        setTimeout(recognize, 10000, startLooking, true)
+        if(txt && !recent[txt] ) {
+            tts("hi " + txt)
+            recent[txt]= new Date()
+        } else {
+            var dt1 = recent[txt]
+            var dt2 = new Date()
+            var mins = (dt2 - dt1)/1000/60
+            if ( mins > 1) {
+                //delete recent[txt]
+                recent[txt]= new Date()
+                tts("hi " + txt + " - how have you been!")
+            }
+            console.log("Last Saw: ", dt1, dt2, mins)
+        }
+    } else {
+        $('#lookingDiv').fadeOut()
+        lookingAround = null
+        stopCamera()
+        recent=[]
+    }
+}
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function trascribeToggleCB(txt, final) {
     console.log(txt)
@@ -112,5 +176,10 @@ async function lookUp(txt) {
     cogStatus.html("looking up!!")
     await callws('/cogs/lookup/', "", lookUpCB, data, {show_busy: 0});
 }
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+$(document).ready(function() {
+    restoreZZValues()
+    listen_wakeword()
+})
  </script>
 {% endblock %}

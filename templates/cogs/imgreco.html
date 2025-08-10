@@ -1,0 +1,312 @@
+{% extends "common.html" %}
+{% block content %}
+<style>
+.btn-active {
+    background-color: #28a745;
+    border-color: #28a745;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+#videoPreview, #imagePreview {
+    max-width: 300px;
+    max-height: 200px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+</style>
+
+<div class="row" style="height:100%;padding: 0 0 0 0;">
+    <div class="col-5" style="background: #f9f9f9; padding:0 5 0 20;">
+        <br/>
+        <h5>Face Recognition</h5>
+        
+        <!-- Camera Controls -->
+        <div style="margin-bottom: 15px;">
+            <button id="startCameraBtn" class="btn btn-primary" onclick="startCamera()">
+                <i class="fa fa-camera"></i> Start Camera
+            </button>
+            <button id="captureBtn" class="btn btn-success" onclick="captureImage()" disabled>
+                <i class="fa fa-camera-retro"></i> Capture
+            </button>
+            <button id="recognizeBtn" class="btn btn-info" onclick="recognizeFace()" disabled>
+                <i class="fa fa-search"></i> Recognize
+            </button>
+        </div>
+        
+        <!-- Video Preview -->
+        <video id="videoPreview" autoplay muted style="display: none;"></video>
+        <canvas id="captureCanvas" style="display: none;"></canvas>
+        <img id="imagePreview" style="display: none;" />
+        
+        <br/><br/>
+        
+        <!-- Add Face Section -->
+        <h6>Add New Face</h6>
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="nameInput" placeholder="Enter name" class="form-control" style="margin-bottom: 10px; width: 200px;">
+            <button id="addFaceBtn" class="btn btn-warning" onclick="addFace()" disabled>
+                <i class="fa fa-plus"></i> Add Face
+            </button>
+        </div>
+        
+        <!-- File Upload -->
+        <div style="margin-bottom: 15px;">
+            <input type="file" id="fileInput" accept="image/*" onchange="loadImageFile()" class="form-control-file">
+        </div>
+        
+        <!-- Status -->
+        <span id="imgStatus" style="font-size: smaller; color: #666;"></span>
+        
+        <br/><br/>
+        
+        <!-- Results -->
+        <div id="results" style="padding:10px;border: 1px solid gray; border-radius: 6px;font-size: small;min-height: 100px; background: white;">
+            <em>Results will appear here...</em>
+        </div>
+    </div>
+    
+    <div class="col-7" style="font-size: smaller;height: 100%; overflow: scroll; padding: 20px;">
+        <h6>Known Faces</h6>
+        <div id="faceList" style="padding:10px;border: 1px solid #ddd; border-radius: 6px;min-height: 200px; background: #f8f9fa;">
+            <em>Loading...</em>
+        </div>
+        
+        <br/>
+        <h6>Instructions</h6>
+        <ul style="font-size: 12px;">
+            <li><strong>Recognize:</strong> Click "Start Camera", then "Capture" to take a photo, then "Recognize" to identify faces</li>
+            <li><strong>Add Face:</strong> Capture an image or upload a file, enter a name, then click "Add Face"</li>
+            <li><strong>File Upload:</strong> Use the file input to upload an image instead of using camera</li>
+        </ul>
+    </div>
+</div>
+<script>
+let videoStream = null;
+let capturedImageData = null;
+
+const videoPreview = document.getElementById('videoPreview');
+const captureCanvas = document.getElementById('captureCanvas');
+const imagePreview = document.getElementById('imagePreview');
+const imgStatus = document.getElementById('imgStatus');
+const results = document.getElementById('results');
+const faceList = document.getElementById('faceList');
+const startCameraBtn = document.getElementById('startCameraBtn');
+const captureBtn = document.getElementById('captureBtn');
+
+// Start camera
+async function startCamera() {
+    try {
+        imgStatus.textContent = 'Starting camera...';
+        
+        videoStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: 640, height: 480 } 
+        });
+        
+        videoPreview.srcObject = videoStream;
+        videoPreview.style.display = 'block';
+        imagePreview.style.display = 'none';
+        
+        if(captureBtn) captureBtn.disabled = false
+        if(startCameraBtn) startCameraBtn.disabled = true
+        
+        imgStatus.textContent = 'Camera ready. Click Capture to take a photo.';
+    } catch (error) {
+        console.error('Error starting camera:', error);
+        imgStatus.textContent = 'Error: Could not access camera.';
+    }
+}
+
+// Capture image from camera
+function captureImage() {
+    if (!videoStream) return;
+    
+    const canvas = captureCanvas;
+    const context = canvas.getContext('2d');
+    
+    canvas.width = videoPreview.videoWidth;
+    canvas.height = videoPreview.videoHeight;
+    
+    context.drawImage(videoPreview, 0, 0);
+    
+    // Convert to base64
+    capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Show preview
+    imagePreview.src = capturedImageData;
+    imagePreview.style.display = 'block';
+    videoPreview.style.display = 'none';
+    
+    // Stop camera
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+    }
+    
+    document.getElementById('startCameraBtn').disabled = false;
+    document.getElementById('captureBtn').disabled = true;
+    document.getElementById('recognizeBtn').disabled = false;
+    document.getElementById('addFaceBtn').disabled = false;
+    
+    imgStatus.textContent = 'Image captured. Ready for recognition or adding to database.';
+}
+
+// Load image from file
+function loadImageFile() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        capturedImageData = e.target.result;
+        
+        imagePreview.src = capturedImageData;
+        imagePreview.style.display = 'block';
+        videoPreview.style.display = 'none';
+        
+        document.getElementById('recognizeBtn').disabled = false;
+        document.getElementById('addFaceBtn').disabled = false;
+        
+        imgStatus.textContent = 'Image loaded from file. Ready for recognition or adding to database.';
+    };
+    reader.readAsDataURL(file);
+}
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Callback for recognize face
+function recognizeFaceCB(responseTxt, statusTxt, xhr, context, formData) {
+    try {
+        const data = JSON.parse(responseTxt);
+        
+        if (data.error) {
+            results.innerHTML = `<div style="color: red;">Error: ${data.error}</div>`;
+            imgStatus.textContent = 'Recognition failed.';
+        } else if (data.result === 'success') {
+            let html = `<strong>Found ${data.faces_found} face(s):</strong><br/>`;
+            
+            data.recognitions.forEach((recognition, index) => {
+                if (recognition.name === 'Unknown') {
+                    html += `<div style="color: orange;">Face ${index + 1}: ${recognition.message}</div>`;
+                } else {
+                    html += `<div style="color: green;">Face ${index + 1}: ${recognition.message}</div>`;
+                }
+            });
+            
+            results.innerHTML = html;
+            imgStatus.textContent = 'Recognition complete.';
+        } else {
+            results.innerHTML = `<div style="color: orange;">${data.result}</div>`;
+            imgStatus.textContent = 'No faces found.';
+        }
+    } catch (error) {
+        console.error('Recognition error:', error);
+        results.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+        imgStatus.textContent = 'Recognition failed.';
+    } finally {
+        document.getElementById('recognizeBtn').classList.remove('btn-active');
+    }
+}
+// Recognize face
+async function recognizeFace() {
+    if (!capturedImageData) {
+        imgStatus.textContent = 'No image captured. Please capture or upload an image first.';
+        return;
+    }
+    
+    imgStatus.textContent = 'Recognizing face...';
+    document.getElementById('recognizeBtn').classList.add('btn-active');
+    
+    // Use callws instead of fetch
+    await callws('/imgreco/recognize/', '', recognizeFaceCB, {image_data: capturedImageData}, {show_busy: 0});
+}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Callback for add face
+function addFaceCB(responseTxt, statusTxt, xhr, context, formData) {
+    try {
+        const data = JSON.parse(responseTxt);
+        
+        if (data.error) {
+            results.innerHTML = `<div style="color: red;">Error: ${data.error}</div>`;
+            imgStatus.textContent = 'Failed to add face.';
+        } else {
+            results.innerHTML = `<div style="color: green;">${data.message}</div>`;
+            imgStatus.textContent = `Face added successfully. Total faces: ${data.total_faces}`;
+            
+            // Clear name input
+            document.getElementById('nameInput').value = '';
+            
+            // Refresh face list
+            loadFaceList();
+        }
+    } catch (error) {
+        console.error('Add face error:', error);
+        results.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+        imgStatus.textContent = 'Failed to add face.';
+    } finally {
+        document.getElementById('addFaceBtn').classList.remove('btn-active');
+    }
+}
+// Add face to database
+async function addFace() {
+    const name = document.getElementById('nameInput').value.trim();
+    
+    if (!name) {
+        imgStatus.textContent = 'Please enter a name.';
+        return;
+    }
+    
+    if (!capturedImageData) {
+        imgStatus.textContent = 'No image captured. Please capture or upload an image first.';
+        return;
+    }
+    
+    imgStatus.textContent = 'Adding face to database...';
+    document.getElementById('addFaceBtn').classList.add('btn-active');
+    
+    // Use callws instead of fetch
+    await callws('/imgreco/add_face/', '', addFaceCB, {image_data: capturedImageData, name: name}, {show_busy: 0});
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Callback for list faces
+function listFacesCB(responseTxt, statusTxt, xhr, context, formData) {
+    try {
+        const data = JSON.parse(responseTxt);
+        
+        if (data.error) {
+            faceList.innerHTML = `<div style="color: red;">Error: ${data.error}</div>`;
+        } else {
+            if (data.faces.length === 0) {
+                faceList.innerHTML = '<em>No faces in database yet.</em>';
+            } else {
+                let html = `<strong>Total: ${data.total_faces} faces</strong><br/><br/>`;
+                data.faces.forEach((name, index) => {
+                    html += `<div style="padding: 2px 0;">${index + 1}. ${name}</div>`;
+                });
+                faceList.innerHTML = html;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading face list:', error);
+        faceList.innerHTML = '<div style="color: red;">Error loading face list</div>';
+    }
+}
+// Load list of known faces
+async function loadFaceList() {
+    await callws('/imgreco/list_faces/', '', listFacesCB, {}, {show_busy: 0});
+}    
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadFaceList();
+    imgStatus.textContent = 'Ready. Click "Start Camera" or upload an image file.';
+});
+
+</script>
+{% endblock %}

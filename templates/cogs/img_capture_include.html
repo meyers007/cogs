@@ -1,0 +1,103 @@
+<div id="lookingDiv" 
+    style="display: none; pposition: fixed; bottom: 0; left: 5; ">
+    <video id="videoPreview" autoplay muted style="border: 3px solid rgb(56, 14, 14); border-radius: 10px;"></video>
+    <canvas id="captureCanvas" style="display: none;"></canvas>
+    <img id="imagePreview" />
+    <span id="imgStatus" style="font-size: smaller; color: #666;"></span>
+</div>
+
+<script>
+let videoStream = null;
+let capturedImageData = null;
+
+const videoPreview = document.getElementById('videoPreview');
+const captureCanvas = document.getElementById('captureCanvas');
+const imagePreview = document.getElementById('imagePreview');
+
+async function startCamera(width=320, height=240, div=null) {
+    try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: width, height: height } 
+        });
+        
+        videoPreview.srcObject = videoStream;
+        videoPreview.style.display = 'block';
+        imagePreview.style.display = 'none';
+    } catch (error) {
+        console.error('Error starting camera:', error);
+        imgStatus.textContent = 'Error: Could not access camera.';
+    }
+}
+function stopCamera() {
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+    }    
+}
+// Capture image from camera
+function captureImage() {
+    if (!videoStream) return;
+    
+    const canvas = captureCanvas;
+    const context = canvas.getContext('2d');
+    
+    canvas.width = videoPreview.videoWidth;
+    canvas.height = videoPreview.videoHeight;
+    
+    context.drawImage(videoPreview, 0, 0);
+    
+    // Convert to base64
+    capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Show preview
+    imagePreview.src = capturedImageData;
+    //imagePreview.style.display = 'block';
+    //videoPreview.style.display = 'none';
+    //stopCamera()
+
+    imgStatus.textContent = 'Image captured. Checking';
+}
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Callback for recognize face
+function recognizeFaceCB(responseTxt, statusTxt, xhr, context, formData) {
+    let html = "" 
+    let faces = ""
+    try {
+        const data = JSON.parse(responseTxt);
+        
+        if (data.error) {
+            imgStatus.innerHTML = `<div style="color: red;">Error: ${data.error}</div>`;
+        } else if (data.result === 'success') {
+            html = `<strong>Recognized ${data.faces_found} face(s):</strong>`;
+            data.recognitions.forEach((recognition, index) => {
+                if (recognition.name !== 'Unknown') {
+                    html += `${recognition.message}; `;
+                    faces += recognition.face + ";"
+                }
+            });
+            imgStatus.innerHTML = html;
+        } else {
+            imgStatus.innerHTML =  'No faces found.';
+        }
+    } catch (error) {
+        console.error('Recognition error:', error);
+        imgStatus.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+    } 
+    if ( context.callback) {
+        context.callback(faces)
+    }
+}
+// Recognize face
+async function recognize(callback=null, captureFresh=false) {
+    if (!capturedImageData || captureFresh) {
+        imgStatus.textContent = 'Capturing image.';
+        captureImage()
+    }
+    if (!capturedImageData) {
+        return
+    }
+    data =  {image_data: capturedImageData, callback: callback}
+    imgStatus.textContent = 'Recognizing ...';
+    await callws('/imgreco/recognize/', '', recognizeFaceCB, data, {show_busy: 0});
+}
+</script>
