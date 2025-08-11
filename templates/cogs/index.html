@@ -49,11 +49,11 @@
             style="padding:10px;border: 1px solid gray; border-radius: 6px;font-size: small;min-height: 30%;">
         </div>
         <div class="small">
-            <div>
+            <div style="align-items: center; border: 1px solid gray;padding:2px; display:  inline-block;">
+                <span style="vertical-align: middle;">Listen to WW &nbsp; </span>
                 <input onclick="listen_wakeword()" id="listen_wakeword" type="checkbox" style="vertical-align: middle;" /> 
-                <span style="vertical-align: middle;">Listen during starup </span> 
             </div>
-            <div>
+            <div style="align-items: center; border: 1px solid gray; padding:2px; display: inline-block;">
                 <input onclick="startLooking()" id="look_around" type="checkbox" style="vertical-align: middle;" /> 
                 <span style="vertical-align: middle;">Look Around </span> 
             </div>
@@ -96,6 +96,7 @@ function wwStop(){
 function wwToggle(){
     if ( WW_ACTIVE){
         wwStop()
+        return
     }
     WW_ACTIVE = 1
     wwDetect()
@@ -114,6 +115,7 @@ let lookingAround = null
 let recent = {}
 function startLooking(txt=null) {
     if ($('#look_around')[0].checked) {
+        saveZZValues();
         if (!lookingAround) {
             $('#lookingDiv').show()
             lookingAround = 1
@@ -141,6 +143,7 @@ function startLooking(txt=null) {
         lookingAround = null
         stopCamera()
         recent=[]
+        saveZZValues();
     }
 }
 
